@@ -17,7 +17,30 @@ function getGroqClient() {
   }
   return groqClient;
 }
+async function gradeRetrieval(userQuery, context) {
+  const client = getGroqClient();
+  
+  const graderPrompt = `
+    SYSTEM: You are a strict relevance grader.
+    TASK: Evaluate if the provided Context contains enough technical information to answer the User Query.
+    
+    Context:
+    ${context}
+    
+    User Query: ${userQuery}
+    
+    Return ONLY a JSON object: {"relevant": true} or {"relevant": false}
+  `;
 
+  const response = await client.chat.completions.create({
+    messages: [{ role: "user", content: graderPrompt }],
+    model: "llama-3.3-70b-versatile",
+    temperature: 0, // Deterministic for grading
+    response_format: { type: "json_object" }
+  });
+
+  return JSON.parse(response.choices[0].message.content);
+}
 async function* getChatResponseStream(userQuery, context, repoMetadata) {
   // 1. Get the initialized client
   const client = getGroqClient();
@@ -57,5 +80,48 @@ const systemPrompt = `
     }
   }
 }
+/**
+ * Query Rewriter: Transforms vague user questions into optimized technical search queries.
+ */
+async function rewriteQuery(originalQuery) {
+  const client = getGroqClient();
+  
+  const rewriterPrompt = `
+    SYSTEM: You are a Search Query Optimizer.
+    TASK: Convert the User's question into a 3-5 word technical search query optimized for Vector Retrieval.
+    Focus on: Method names, variable types, and architectural patterns.
+    
+    Original: ${originalQuery}
+    
+    Return ONLY the optimized string.
+  `;
 
-module.exports = { getChatResponseStream };
+  const response = await client.chat.completions.create({
+    messages: [{ role: "user", content: rewriterPrompt }],
+    model: "llama-3.3-70b-versatile",
+    temperature: 0.1
+  });
+
+  return response.choices[0].message.content.trim();
+}
+async function reRankDocs(query, docs) {
+  const client = getGroqClient();
+  const docsText = docs.map((d, i) => `ID ${i}: [${d.metadata.source}]\n${d.pageContent.substring(0, 300)}`).join("\n---\n");
+  
+  const rankingPrompt = `
+    Query: ${query}
+    Rank these code snippets by their ability to answer the query. 
+    Return ONLY a comma-separated list of IDs in order of relevance.
+  `;
+
+  const response = await client.chat.completions.create({
+    messages: [{ role: "user", content: rankingPrompt }],
+    model: "llama-3.3-70b-versatile",
+    temperature: 0
+  });
+
+  const order = response.choices[0].message.content.split(',').map(Number).filter(n => !isNaN(n));
+  return order.map(index => docs[index]);
+}
+
+module.exports = { getChatResponseStream,gradeRetrieval,rewriteQuery,reRankDocs };
