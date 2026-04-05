@@ -91,12 +91,16 @@ const neighborPaths = [...new Set(initialChunks.flatMap(d => d.metadata.links ||
     metadata: { source: n.sourcePath }
   }))];
 
-  // STAGE 3: Re-ranking (Score all candidates)
-  // STAGE 4: Select Top N (Final Context)
-  const rankedResults = await reRankDocs(query, allCandidates);
+  const rankedResults = await reRankDocs(query, allCandidates.map(c => ({
+    pageContent: c.pageContent,
+    metadata: c.metadata
+  })));
   const topN = rankedResults.slice(0, 5); // Final Context selection
 
-  return topN.map(doc => `Source: ${doc.metadata.source}\nContent: ${doc.pageContent}`).join("\n\n");
+  return topN.map(doc => {
+    const source = doc.metadata ? doc.metadata.source : 'Unknown Source';
+    return `Source: ${source}\nContent: ${doc.pageContent}`;
+  }).join("\n\n");
 }
 
 

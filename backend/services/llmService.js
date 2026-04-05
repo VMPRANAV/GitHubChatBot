@@ -121,7 +121,19 @@ async function reRankDocs(query, docs) {
   });
 
   const order = response.choices[0].message.content.split(',').map(Number).filter(n => !isNaN(n));
-  return order.map(index => docs[index]);
+  return order.map(index => docs[index]).filter(Boolean); // Add .filter(Boolean) to remove undefined
+}
+async function checkQueryIntent(query) {
+  const client = getGroqClient();
+  const response = await client.chat.completions.create({
+    messages: [{ 
+      role: "user", 
+      content: `Is the following query related to software, coding, or repository analysis? Query: "${query}". Return a JSON object with a single key "relevant" (true or false).` 
+    }],
+    model: "llama-3.1-8b-instant", // Use a smaller, faster model here
+    response_format: { type: "json_object" }
+  });
+  return JSON.parse(response.choices[0].message.content).relevant;
 }
 
-module.exports = { getChatResponseStream,gradeRetrieval,rewriteQuery,reRankDocs };
+module.exports = { getChatResponseStream,gradeRetrieval,rewriteQuery,reRankDocs,checkQueryIntent};

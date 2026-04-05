@@ -4,7 +4,8 @@ const { getEmbeddingsModel } = require('./ragService');
 
 async function checkSemanticCache(query) {
   try {
-    const model = await getEmbeddingsModel();
+    const model = await 
+    getEmbeddingsModel();
     const queryEmbedding = await model.embedQuery(query);
 
     // Using MongoDB Vector Search to find similar previous questions
